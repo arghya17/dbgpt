@@ -135,3 +135,53 @@ resource "google_pubsub_subscription" "weather_subscription" {
 }
 ```
 
+
+
+
+```
+resource "google_cloud_scheduler_job" "job" {
+  for_each = var.cloud_scheduler_jobs
+
+  name        = each.value.name
+  description = each.value.desc
+  schedule    = each.value.schedule
+  time_zone   = "UTC" # Adjust if needed
+  project     = each.value.project
+  region      = each.value.region
+
+  http_target {
+    uri         = each.value.endpoint
+    http_method = each.value.http_method
+
+    # Optional headers, if provided
+    headers = each.value.headers
+
+    # Optional body for POST requests
+    body = each.value.http_method == "POST" ? base64encode("{\"key\": \"value\"}") : null
+  }
+}
+
+resource "google_cloud_scheduler_job" "job" {
+  for_each = var.cloud_scheduler_jobs
+
+  name        = each.value.name
+  description = each.value.desc
+  schedule    = each.value.schedule
+  time_zone   = "UTC" # Adjust if needed
+  project     = each.value.project
+  region      = each.value.region
+
+  http_target {
+    uri         = each.value.endpoint
+    http_method = each.value.http_method
+
+    # Optional headers, if provided
+    headers = each.value.headers
+
+    # Optional body for POST requests
+    body = each.value.http_method == "POST" ? base64encode("{\"key\": \"value\"}") : null
+  }
+}
+
+```
+

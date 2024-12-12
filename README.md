@@ -1,4 +1,33 @@
 ```
+sed -i '' "s/^default_ccache_name = KEYRING:persistent:%{uid}/default_ccache_name = \/tmp\/hello:%{uid}/g" test.txt
+
+# Environment Variable (Optional, outside Terraform)
+# During Cloud Run deployment, set an environment variable named TARGET_IP with the value 123.123.13.2412.
+
+resource "google_compute_firewall" "allow_outbound_to_intranet" {
+  name    = "allow-outbound-to-intranet"
+  network = google_compute_network.default.id
+
+  allow {
+    protocol = "tcp"
+    ports    = ["80", "443"] # Adjust ports as needed
+  }
+
+  source_ranges = ["0.0.0.0/0"]
+  target_tags    = ["your-cloud-run-service-tag"]
+
+  destination_ranges = ["123.123.13.2412"]
+}
+
+#!/bin/bash
+
+# Replace 'your_target_ip' with the actual IP address of 'xyz.intranet.com'
+echo "your_target_ip xyz.intranet.com" >> /etc/hosts
+```
+
+
+
+```
 from flask import Flask, Blueprint, request, jsonify
 
 weather_blueprint = Blueprint("weather", __name__)

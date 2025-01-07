@@ -1,4 +1,131 @@
 ```
+import jwt  # Install using `pip install pyjwt[crypto]`
+import datetime
+import json
+import requests
+
+def generate_jwt(service_account_info, audience):
+    """
+    Generates a signed JWT for Google service account authentication.
+    :param service_account_info: The JSON key as a dictionary.
+    :param audience: The API audience (e.g., https://storage.googleapis.com/).
+    :return: Signed JWT.
+    """
+    now = datetime.datetime.utcnow()
+    payload = {
+        "iss": service_account_info["client_email"],
+        "sub": service_account_info["client_email"],
+        "aud": audience,
+        "iat": int(now.timestamp()),
+        "exp": int((now + datetime.timedelta(minutes=60)).timestamp()),
+    }
+    headers = {"alg": "RS256", "typ": "JWT"}
+    signed_jwt = jwt.encode(payload, service_account_info["private_key"], algorithm="RS256", headers=headers)
+    return signed_jwt
+
+
+
+def get_access_token(signed_jwt):
+    """
+    Exchanges a signed JWT for an OAuth 2.0 access token.
+    :param signed_jwt: The signed JWT.
+    :return: Access token.
+    """
+    token_url = "https://oauth2.googleapis.com/token"
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    payload = {
+        "grant_type": "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        "assertion": signed_jwt,
+    }
+    response = requests.post(token_url, headers=headers, data=payload)
+    response_data = response.json()
+    return response_data["access_token"]
+
+
+
+def upload_to_gcs_via_api(bucket_name, object_name, data, access_token):
+    """
+    Uploads data to GCS using the JSON API.
+    :param bucket_name: Name of the GCS bucket.
+    :param object_name: Destination object name in the bucket.
+    :param data: Data to upload (as bytes).
+    :param access_token: OAuth 2.0 access token.
+    """
+    url = f"https://storage.googleapis.com/upload/storage/v1/b/{bucket_name}/o?uploadType=media&name={object_name}"
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Content-Type": "application/octet-stream",
+    }
+    response = requests.post(url, headers=headers, data=data)
+
+    if response.status_code == 200:
+        print(f"File uploaded successfully: {response.json()}")
+    else:
+        print(f"Failed to upload file: {response.status_code}, {response.text}")
+
+
+
+import json
+
+# Replace this with your service account key file
+SERVICE_ACCOUNT_KEY = "service_account_key.json"
+
+# Load the service account key
+with open(SERVICE_ACCOUNT_KEY, "r") as f:
+    service_account_info = json.load(f)
+
+# Step 1: Generate a signed JWT
+audience = "https://storage.googleapis.com/"
+signed_jwt = generate_jwt(service_account_info, audience)
+
+# Step 2: Get an OAuth 2.0 access token
+access_token = get_access_token(signed_jwt)
+
+# Step 3: Upload a file to GCS
+bucket_name = "your-bucket-name"
+object_name = "test-file.txt"
+data = b"This is some test data to upload to GCS."  # Replace with your actual data
+upload_to_gcs_via_api(bucket_name, object_name, data, access_token)
+
+
+```
+
+
+
+```
+pip install google-cloud-storage
+
+
+from google.cloud import storage
+
+def upload_to_gcs(bucket_name, file_path, destination_blob_name):
+    """
+    Uploads a file to a Google Cloud Storage bucket.
+    :param bucket_name: The name of the GCS bucket.
+    :param file_path: Local path to the file to upload.
+    :param destination_blob_name: Destination file name in the bucket.
+    """
+    try:
+        # Initialize the GCS client
+        storage_client = storage.Client()
+
+        # Get the bucket
+        bucket = storage_client.bucket(bucket_name)
+
+        # Create a new blob and upload the file's content
+        blob = bucket.blob(destination_blob_name)
+        blob.upload_from_filename(file_path)
+
+        print(f"File {file_path} uploaded to {destination_blob_name} in bucket {bucket_name}.")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+
+```
+
+
+```
 sed -i '' "s/^default_ccache_name = KEYRING:persistent:%{uid}/default_ccache_name = \/tmp\/hello:%{uid}/g" test.txt
 
 # Environment Variable (Optional, outside Terraform)

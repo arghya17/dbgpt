@@ -1,4 +1,90 @@
 ```
+name: Deploy to GKE
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v3
+
+    - name: Set up Google Cloud SDK
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        version: 'latest'
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        service_account_key: ${{ secrets.GCP_SA_KEY }}
+
+    - name: Authenticate kubectl
+      run: |
+        gcloud container clusters get-credentials ${{ secrets.GKE_CLUSTER_NAME }} --zone ${{ secrets.GKE_ZONE }}
+
+    - name: Deploy Application
+      run: |
+        kubectl apply -f k8s/
+        kubectl rollout status deployment/<deployment-name> -n <namespace>
+
+    - name: Check DNS Pod Status
+      run: |
+        echo "Checking CoreDNS status..."
+        kubectl get pods -n kube-system | grep coredns
+
+    - name: Validate Consul Service
+      run: |
+        echo "Validating Consul service..."
+        kubectl get svc -n <namespace>
+        kubectl describe svc consul -n <namespace>
+
+    - name: Test DNS Resolution
+      run: |
+        echo "Creating a test pod to check DNS resolution..."
+        kubectl run test-dns --image=busybox --restart=Never --command -- sleep 3600
+        kubectl wait --for=condition=ready pod/test-dns --timeout=60s
+        kubectl exec test-dns -- nslookup consul.<namespace>.svc.cluster.local
+
+    - name: Check Logs for Consul Pod
+      run: |
+        echo "Checking Consul pod logs..."
+        kubectl logs deployment/consul -n <namespace>
+
+    - name: Apply Network Policies (if needed)
+      run: |
+        echo "Applying network policies to allow DNS traffic..."
+        cat <<EOF | kubectl apply -f -
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: allow-dns
+          namespace: <namespace>
+        spec:
+          podSelector: {}
+          policyTypes:
+            - Ingress
+          ingress:
+            - from:
+                - namespaceSelector: {}
+              ports:
+                - protocol: UDP
+                  port: 53
+                - protocol: TCP
+                  port: 53
+        EOF
+
+    - name: Restart Pods if DNS Changes
+      run: |
+        echo "Restarting deployment to apply DNS fixes..."
+        kubectl rollout restart deployment/<deployment-name> -n <namespace>
+
+```
+
+
+```
 import jwt  # Install using `pip install pyjwt[crypto]`
 import datetime
 import json

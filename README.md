@@ -123,7 +123,26 @@ if __name__ == "__main__":
 
 
 
+#!/bin/bash
 
+# Check if a file is provided
+if [ $# -ne 1 ]; then
+    echo "Usage: $0 <json-file>"
+    exit 1
+fi
+
+JSON_FILE="$1"
+
+# Check if the file exists
+if [ ! -f "$JSON_FILE" ]; then
+    echo "Error: File '$JSON_FILE' not found!"
+    exit 1
+fi
+
+# Count occurrences of "severity":"High"
+COUNT=$(grep -o '"severity":"High"' "$JSON_FILE" | wc -l)
+
+echo "Occurrences of \"severity\":\"High\": $COUNT"
 
 
 

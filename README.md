@@ -1,3 +1,57 @@
+
+
+curl -L -H "Authorization: token YOUR_GITHUB_TOKEN" \
+     -H "Accept: application/vnd.github.v3+json" \
+     -o artifact.zip \
+     https://api.github.com/repos/OWNER/REPO/actions/artifacts/ARTIFACT_ID/zip
+
+
+
+curl -H "Authorization: token YOUR_GITHUB_TOKEN" \
+     -H "Accept: application/vnd.github.v3+json" \
+     https://api.github.com/repos/OWNER/REPO/actions/runs/RUN_ID/artifacts
+
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create artifact
+        run: echo "Hello, World!" > artifact.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-artifact
+          path: artifact.txt
+
+  download:
+    runs-on: ubuntu-latest
+    needs: build  # Ensures build runs first
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: my-artifact
+          path: ./downloaded-artifact
+
+      - name: List downloaded files
+        run: ls -R ./downloaded-artifact
+
+
+
+
+
+
+
+
+
+
+
 ```
 name: Deploy to GKE
 

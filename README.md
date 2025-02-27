@@ -1,3 +1,52 @@
+```
+from flask import Flask, request, jsonify, render_template
+from google.cloud import aiplatform
+
+# Initialize Flask app
+app = Flask(__name__)
+
+# Set your project and location
+PROJECT_ID = "your-gcp-project-id"
+LOCATION = "us-central1"  # Adjust based on your Vertex AI region
+MODEL_NAME = "gemini-pro"  # Use the Gemini model available in Vertex AI
+
+# Function to send query to Vertex AI Gemini
+def chat_with_gemini(query):
+    try:
+        aiplatform.init(project=PROJECT_ID, location=LOCATION)
+
+        # Use Vertex AI Chat model
+        model = aiplatform.generation.TextGenerationModel.from_pretrained(MODEL_NAME)
+        response = model.predict(query)
+
+        return response.text if response else "No response from AI."
+    except Exception as e:
+        return f"Error: {str(e)}"
+
+# Serve the chatbot UI
+@app.route("/")
+def index():
+    return render_template("chat.html")
+
+# API endpoint for chat
+@app.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json()
+    query = data.get("Query", "")
+
+    if not query:
+        return jsonify({"reply": "Please enter a message."}), 400
+
+    response_text = chat_with_gemini(query)
+    return jsonify({"reply": response_text})
+
+# Run the Flask app
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
+
+```
+
+
 
 ```
 <!DOCTYPE html>

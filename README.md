@@ -1,5 +1,26 @@
 
 ```
+#!/bin/bash
+
+# Path to the JSON report file
+REPORT_FILE="report.json"
+
+# Check if the file exists
+if [ ! -f "$REPORT_FILE" ]; then
+  echo "Error: $REPORT_FILE not found!"
+  exit 1
+fi
+
+# Extract values using jq
+CRITICAL=$(jq -r '.result.vulnerabilities.vulnerabilitydistribution.critical // 0' "$REPORT_FILE")
+HIGH=$(jq -r '.result.vulnerabilities.vulnerabilitydistribution.high // 0' "$REPORT_FILE")
+
+# Print results
+echo "Critical Vulnerabilities: $CRITICAL"
+echo "High Vulnerabilities: $HIGH"
+
+
+
 curl -L -H "Authorization: token YOUR_GITHUB_TOKEN" \
      -H "Accept: application/vnd.github.v3+json" \
      -o artifact.zip \

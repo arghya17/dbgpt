@@ -1,6 +1,56 @@
 
 ```
 #!/bin/bash
+set -e
+
+# Get the first file in the reports/ directory
+REPORT_FILE=$(ls -1 reports/ | head -n 1)
+
+# Check if a file was found
+if [ -z "$REPORT_FILE" ]; then
+  echo "Error: No report file found in reports/ directory!"
+  exit 1
+fi
+
+# Full path to the report file
+REPORT_PATH="reports/$REPORT_FILE"
+
+# Check if the file exists
+if [ ! -f "$REPORT_PATH" ]; then
+  echo "Error: $REPORT_PATH not found!"
+  exit 1
+fi
+
+echo "Processing report: $REPORT_FILE"
+
+# Extract values from the first index of the "result" array using jq
+CRITICAL=$(jq -r '.result[0].vulnerabilities.vulnerabilitydistribution.critical // 0' "$REPORT_PATH")
+HIGH=$(jq -r '.result[0].vulnerabilities.vulnerabilitydistribution.high // 0' "$REPORT_PATH")
+
+# Calculate the total vulnerabilities
+TOTAL=$((CRITICAL + HIGH))
+
+echo "Critical Vulnerabilities: $CRITICAL"
+echo "High Vulnerabilities: $HIGH"
+echo "Total Vulnerabilities: $TOTAL"
+
+# If total vulnerabilities are greater than zero, exit with a non-zero code to fail the workflow.
+if [ "$TOTAL" -gt 0 ]; then
+  echo "Vulnerabilities found! Failing the workflow."
+  exit 1
+else
+  echo "No vulnerabilities found."
+  exit 0
+fi
+
+
+
+
+
+
+
+
+#!/bin/bash
 
 # Path to the JSON report file
 REPORT_FILE="report.json"

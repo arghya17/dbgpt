@@ -1,5 +1,5 @@
 
-
+```
 curl -L -H "Authorization: token YOUR_GITHUB_TOKEN" \
      -H "Accept: application/vnd.github.v3+json" \
      -o artifact.zip \
@@ -41,8 +41,7 @@ jobs:
 
       - name: List downloaded files
         run: ls -R ./downloaded-artifact
-
-
+```
 
 
 

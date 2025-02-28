@@ -1,46 +1,68 @@
 ```
-from flask import Flask, request, jsonify, render_template
-from google.cloud import aiplatform
+from flask import Flask, request, jsonify
+import json
+import urllib.request
 
-# Initialize Flask app
 app = Flask(__name__)
 
-# Set your project and location
-PROJECT_ID = "your-gcp-project-id"
-LOCATION = "us-central1"  # Adjust based on your Vertex AI region
-MODEL_NAME = "gemini-pro"  # Use the Gemini model available in Vertex AI
+# Metadata server URLs
+METADATA_URL = "http://metadata.google.internal/computeMetadata/v1"
+HEADERS = {"Metadata-Flavor": "Google"}
 
-# Function to send query to Vertex AI Gemini
-def chat_with_gemini(query):
-    try:
-        aiplatform.init(project=PROJECT_ID, location=LOCATION)
+def get_metadata(path):
+    """Fetches metadata from GCP metadata server."""
+    url = f"{METADATA_URL}/{path}"
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req) as response:
+        return response.read().decode("utf-8")
 
-        # Use Vertex AI Chat model
-        model = aiplatform.generation.TextGenerationModel.from_pretrained(MODEL_NAME)
-        response = model.predict(query)
+def get_project_id():
+    return get_metadata("project/project-id")
 
-        return response.text if response else "No response from AI."
-    except Exception as e:
-        return f"Error: {str(e)}"
+def get_region():
+    full_zone = get_metadata("instance/zone")  # e.g., projects/12345/zones/us-central1-a
+    return full_zone.split("/")[-1].rsplit("-", 1)[0]  # Extracts 'us-central1' from 'us-central1-a'
 
-# Serve the chatbot UI
-@app.route("/")
-def index():
-    return render_template("chat.html")
+def get_access_token():
+    """Fetches an access token for authentication with Vertex AI."""
+    url = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
+    req = urllib.request.Request(url, headers=HEADERS)
+    with urllib.request.urlopen(req) as response:
+        token_data = json.load(response)
+        return token_data["access_token"]
 
-# API endpoint for chat
 @app.route("/chat", methods=["POST"])
 def chat():
     data = request.get_json()
-    query = data.get("Query", "")
+    prompt = data.get("message", "")
 
-    if not query:
-        return jsonify({"reply": "Please enter a message."}), 400
+    if not prompt:
+        return jsonify({"error": "Message is required"}), 400
 
-    response_text = chat_with_gemini(query)
-    return jsonify({"reply": response_text})
+    project_id = get_project_id()
+    region = get_region()
+    
+    # Vertex AI REST API Endpoint
+    endpoint = f"https://{region}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}/publishers/google/models/gemini-pro:predict"
 
-# Run the Flask app
+    headers = {
+        "Authorization": f"Bearer {get_access_token()}",
+        "Content-Type": "application/json"
+    }
+
+    payload = json.dumps({
+        "instances": [{"prompt": prompt}],
+        "parameters": {"temperature": 0.7, "maxOutputTokens": 256}
+    }).encode("utf-8")
+
+    try:
+        req = urllib.request.Request(endpoint, data=payload, headers=headers)
+        with urllib.request.urlopen(req) as response:
+            result = json.load(response)
+            return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=8080)
 

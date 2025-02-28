@@ -1,6 +1,79 @@
 ```
 from flask import Flask, request, jsonify
 import json
+import requests  # Now using requests for simplicity
+
+app = Flask(__name__)
+
+# Metadata server URLs
+METADATA_URL = "http://metadata.google.internal/computeMetadata/v1"
+HEADERS = {"Metadata-Flavor": "Google"}
+
+def get_metadata(path):
+    """Fetches metadata from GCP metadata server."""
+    response = requests.get(f"{METADATA_URL}/{path}", headers=HEADERS)
+    return response.text
+
+def get_project_id():
+    return get_metadata("project/project-id")
+
+def get_region():
+    full_zone = get_metadata("instance/zone")  # e.g., projects/12345/zones/us-central1-a
+    return full_zone.split("/")[-1].rsplit("-", 1)[0]  # Extracts 'us-central1' from 'us-central1-a'
+
+def get_access_token():
+    """Fetches an access token for authentication with Vertex AI."""
+    response = requests.get(f"{METADATA_URL}/instance/service-accounts/default/token", headers=HEADERS)
+    return response.json()["access_token"]
+
+@app.route("/chat", methods=["POST"])
+def chat():
+    data = request.get_json()
+    prompt = data.get("message", "")
+
+    if not prompt:
+        return jsonify({"error": "Message is required"}), 400
+
+    project_id = get_project_id()
+    region = get_region()
+    
+    # Vertex AI REST API Endpoint
+    endpoint = f"https://{region}-aiplatform.googleapis.com/v1/projects/{project_id}/locations/{region}/publishers/google/models/gemini-pro:predict"
+
+    headers = {
+        "Authorization": f"Bearer {get_access_token()}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "instances": [{"prompt": prompt}],
+        "parameters": {"temperature": 0.7, "maxOutputTokens": 256}
+    }
+
+    try:
+        response = requests.post(endpoint, json=payload, headers=headers)
+        return jsonify(response.json())
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=8080)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+from flask import Flask, request, jsonify
+import json
 import urllib.request
 
 app = Flask(__name__)

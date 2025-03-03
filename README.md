@@ -1,4 +1,7 @@
 ```
+createTime,responseId,promptTokenCount,candidateTokenCount,totalToeknCount,model_ver
+
+
 {
     "model_name_1": {
       "Input price$/million": 0.10,

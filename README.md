@@ -1,4 +1,19 @@
 ```
+{
+    "model_name_1": {
+      "Input price$/million": 0.10,
+      "Output price$/million": 0.40
+    },
+    "model_name_2": {
+      "Input price$/million": 0.12,
+      "Output price$/million": 0.38
+    },
+    "model_name_3": {
+      "Input price$/million": 0.11,
+      "Output price$/million": 0.35
+    }
+}  
+
 from flask import Flask, request, jsonify
 import json
 import requests  # Now using requests for simplicity

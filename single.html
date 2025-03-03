@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Usage Dashboard</title>
+    
+    <!-- Include Chart.js and Date Adapter -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            padding: 20px;
+        }
+        .stats {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        .chart-container {
+            width: 80%;
+            margin: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Token Usage Dashboard</h1>
+
+    <div class="stats">
+        <p><strong>Total Input Tokens:</strong> <span id="totalInputTokens">0</span></p>
+        <p><strong>Total Output Tokens:</strong> <span id="totalOutputTokens">0</span></p>
+        <p><strong>Total Cost:</strong> $<span id="totalCost">0.00</span></p>
+    </div>
+
+    <div class="chart-container">
+        <h3>Token Usage Over Time</h3>
+        <canvas id="lineChart"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h3>Cost Distribution by Model</h3>
+        <canvas id="pieChart"></canvas>
+    </div>
+
+    <script>
+        async function fetchData() {
+            try {
+                // Fetch token usage data
+                const response = await fetch("/api/data");
+                if (!response.ok) throw new Error("Failed to fetch data");
+
+                const data = await response.json();
+                console.log("Received Data:", data);
+
+                // Fetch pricing data
+                const priceResponse = await fetch("/api/prices");
+                if (!priceResponse.ok) throw new Error("Failed to fetch pricing data");
+
+                const priceConfig = await priceResponse.json();
+                console.log("Price Config:", priceConfig);
+
+                let totalInputTokens = 0;
+                let totalOutputTokens = 0;
+                let totalCost = 0;
+                const modelCosts = {};  // For pie chart
+                const modelTokenData = {}; // For line chart
+
+                // Process data
+                data.forEach(row => {
+                    const model = row.model_ver;
+                    const inputTokens = row.promptTokenCount;
+                    const outputTokens = row.candidateTokenCount;
+                    const timestamp = new Date(row.createTime);
+
+                    // Aggregate token counts
+                    totalInputTokens += inputTokens;
+                    totalOutputTokens += outputTokens;
+
+                    // Store data for line chart
+                    if (!modelTokenData[model]) {
+                        modelTokenData[model] = { timestamps: [], inputTokens: [], outputTokens: [] };
+                    }
+                    modelTokenData[model].timestamps.push(timestamp);
+                    modelTokenData[model].inputTokens.push(inputTokens);
+                    modelTokenData[model].outputTokens.push(outputTokens);
+
+                    // Calculate cost
+                    if (priceConfig[model]) {
+                        let cost = (inputTokens * priceConfig[model]["Input price$/million"] / 1e6) +
+                                   (outputTokens * priceConfig[model]["Output price$/million"] / 1e6);
+                        totalCost += cost;
+                        modelCosts[model] = (modelCosts[model] || 0) + cost;
+                    }
+                });
+
+                // Update UI
+                document.getElementById("totalInputTokens").innerText = totalInputTokens;
+                document.getElementById("totalOutputTokens").innerText = totalOutputTokens;
+                document.getElementById("totalCost").innerText = totalCost.toFixed(4);
+
+                // Draw Charts
+                drawLineChart(modelTokenData);
+                drawPieChart(modelCosts);
+
+            } catch (error) {
+                console.error("Error fetching data:", error);
+            }
+        }
+
+        function drawLineChart(modelTokenData) {
+            const ctx = document.getElementById("lineChart").getContext("2d");
+            const datasets = Object.keys(modelTokenData).map(model => ({
+                label: model,
+                data: modelTokenData[model].timestamps.map((time, index) => ({
+                    x: time,
+                    y: modelTokenData[model].inputTokens[index]
+                })),
+                borderColor: getRandomColor(),
+                fill: false,
+                tension: 0.1
+            }));
+
+            new Chart(ctx, {
+                type: "line",
+                data: { datasets },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: {
+                            type: "time",
+                            time: { unit: "minute" },
+                            title: { display: true, text: "Time" }
+                        },
+                        y: { title: { display: true, text: "Token Count" } }
+                    }
+                }
+            });
+        }
+
+        function drawPieChart(modelCosts) {
+            const ctx = document.getElementById("pieChart").getContext("2d");
+            new Chart(ctx, {
+                type: "pie",
+                data: {
+                    labels: Object.keys(modelCosts),
+                    datasets: [{
+                        data: Object.values(modelCosts),
+                        backgroundColor: Object.keys(modelCosts).map(() => getRandomColor())
+                    }]
+                }
+            });
+        }
+
+        function getRandomColor() {
+            return `hsl(${Math.random() * 360}, 70%, 50%)`;
+        }
+
+        fetchData();
+    </script>
+
+</body>
+</html>

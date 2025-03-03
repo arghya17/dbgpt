@@ -1,13 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Token Usage Dashboard</title>
-    
-    <!-- Include Chart.js and Date Adapter -->
+
+    <!-- Include Chart.js, jQuery, and DataTables -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery/dist/jquery.min.js"></script>
+    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.11.5/css/jquery.dataTables.min.css">
 
     <style>
         body {
@@ -15,16 +19,48 @@
             text-align: center;
             padding: 20px;
         }
+
         .stats {
             font-size: 18px;
             margin-bottom: 20px;
         }
+
         .chart-container {
             width: 80%;
             margin: auto;
         }
+
+        table {
+            width: 80%;
+            margin: auto;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table,
+        th,
+        td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: center;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        input {
+            width: 80px;
+        }
+
+        button {
+            padding: 8px 15px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
     </style>
 </head>
+
 <body>
 
     <h1>Token Usage Dashboard</h1>
@@ -32,6 +68,7 @@
     <div class="stats">
         <p><strong>Total Input Tokens:</strong> <span id="totalInputTokens">0</span></p>
         <p><strong>Total Output Tokens:</strong> <span id="totalOutputTokens">0</span></p>
+        <p><strong>Total Tokens:</strong> <span id="totalTokens">0</span></p>
         <p><strong>Total Cost:</strong> $<span id="totalCost">0.00</span></p>
     </div>
 
@@ -45,121 +82,194 @@
         <canvas id="pieChart"></canvas>
     </div>
 
+    <div class="chart-container">
+        <h3>Cost Breakdown</h3>
+        <canvas id="barChart"></canvas>
+    </div>
+
+    <h3>Usage Data</h3>
+    <table id="usageTable">
+        <thead>
+            <tr>
+                <th>Timestamp</th>
+                <th>Model</th>
+                <th>Prompt Tokens</th>
+                <th>Candidate Tokens</th>
+                <th>Total Tokens</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <h3>Price Configuration</h3>
+    <table id="priceTable">
+        <thead>
+            <tr>
+                <th>Model</th>
+                <th>Input Price ($/M)</th>
+                <th>Output Price ($/M)</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <button onclick="updatePriceConfig()">Update Prices</button>
+
     <script>
+        let priceConfig = {};
+        let lineChart, pieChart, barChart;
+
         async function fetchData() {
             try {
-                // Fetch token usage data
                 const response = await fetch("/api/data");
                 if (!response.ok) throw new Error("Failed to fetch data");
-
                 const data = await response.json();
-                console.log("Received Data:", data);
 
-                // Fetch pricing data
                 const priceResponse = await fetch("/api/prices");
                 if (!priceResponse.ok) throw new Error("Failed to fetch pricing data");
+                priceConfig = await priceResponse.json();
 
-                const priceConfig = await priceResponse.json();
-                console.log("Price Config:", priceConfig);
-
-                let totalInputTokens = 0;
-                let totalOutputTokens = 0;
-                let totalCost = 0;
-                const modelCosts = {};  // For pie chart
-                const modelTokenData = {}; // For line chart
-
-                // Process data
-                data.forEach(row => {
-                    const model = row.model_ver;
-                    const inputTokens = row.promptTokenCount;
-                    const outputTokens = row.candidateTokenCount;
-                    const timestamp = new Date(row.createTime);
-
-                    // Aggregate token counts
-                    totalInputTokens += inputTokens;
-                    totalOutputTokens += outputTokens;
-
-                    // Store data for line chart
-                    if (!modelTokenData[model]) {
-                        modelTokenData[model] = { timestamps: [], inputTokens: [], outputTokens: [] };
-                    }
-                    modelTokenData[model].timestamps.push(timestamp);
-                    modelTokenData[model].inputTokens.push(inputTokens);
-                    modelTokenData[model].outputTokens.push(outputTokens);
-
-                    // Calculate cost
-                    if (priceConfig[model]) {
-                        let cost = (inputTokens * priceConfig[model]["Input price$/million"] / 1e6) +
-                                   (outputTokens * priceConfig[model]["Output price$/million"] / 1e6);
-                        totalCost += cost;
-                        modelCosts[model] = (modelCosts[model] || 0) + cost;
-                    }
-                });
-
-                // Update UI
-                document.getElementById("totalInputTokens").innerText = totalInputTokens;
-                document.getElementById("totalOutputTokens").innerText = totalOutputTokens;
-                document.getElementById("totalCost").innerText = totalCost.toFixed(4);
-
-                // Draw Charts
-                drawLineChart(modelTokenData);
-                drawPieChart(modelCosts);
-
+                processUsageData(data);
+                renderPriceConfig();
             } catch (error) {
                 console.error("Error fetching data:", error);
             }
         }
 
-        function drawLineChart(modelTokenData) {
-            const ctx = document.getElementById("lineChart").getContext("2d");
-            const datasets = Object.keys(modelTokenData).map(model => ({
+        async function fetchDataInternal() {
+            try {
+                const response = await fetch("/api/data");
+                if (!response.ok) throw new Error("Failed to fetch data");
+                const data = await response.json();
+                processUsageData(data);
+                renderPriceConfig();
+            } catch (error) {
+                console.error("Error fetching data:", error);
+            }
+        }
+
+        function processUsageData(data) {
+            let totalInputTokens = 0, totalOutputTokens = 0, totalTokens = 0, totalCost = 0;
+            let modelCosts = {}, modelTokenData = {}, tableRows = "";
+
+            data.forEach(row => {
+                const model = row.model_ver;
+                const inputTokens = row.promptTokenCount;
+                const outputTokens = row.candidateTokenCount;
+                const total = row.totalTokenCount;
+                const timestamp = new Date(row.createTime);
+
+                totalInputTokens += inputTokens;
+                totalOutputTokens += outputTokens;
+                totalTokens += total;
+
+                if (!modelTokenData[model]) {
+                    modelTokenData[model] = { timestamps: [], totalTokens: [] };
+                }
+                modelTokenData[model].timestamps.push(timestamp);
+                modelTokenData[model].totalTokens.push(total);
+
+                if (priceConfig[model]) {
+                    let cost = (inputTokens * priceConfig[model]["Input price$/million"] / 1e6) +
+                        (outputTokens * priceConfig[model]["Output price$/million"] / 1e6);
+                    totalCost += cost;
+                    modelCosts[model] = (modelCosts[model] || 0) + cost;
+                }
+
+                tableRows += `<tr>
+                    <td>${timestamp.toLocaleString()}</td>
+                    <td>${model}</td>
+                    <td>${inputTokens}</td>
+                    <td>${outputTokens}</td>
+                    <td>${total}</td>
+                </tr>`;
+            });
+
+            document.getElementById("totalInputTokens").innerText = totalInputTokens;
+            document.getElementById("totalOutputTokens").innerText = totalOutputTokens;
+            document.getElementById("totalTokens").innerText = totalTokens;
+            document.getElementById("totalCost").innerText = totalCost.toFixed(4);
+
+            document.querySelector("#usageTable tbody").innerHTML = tableRows;
+            $("#usageTable").DataTable();
+
+            drawLineChart(modelTokenData);
+            drawPieChart(modelCosts);
+            drawBarChart(modelCosts);
+        }
+
+        function drawLineChart(data) {
+            if (lineChart) lineChart.destroy();
+            let datasets = Object.keys(data).map(model => ({
                 label: model,
-                data: modelTokenData[model].timestamps.map((time, index) => ({
-                    x: time,
-                    y: modelTokenData[model].inputTokens[index]
-                })),
+                data: data[model].timestamps.map((time, i) => ({ x: time, y: data[model].totalTokens[i] })),
                 borderColor: getRandomColor(),
-                fill: false,
-                tension: 0.1
+                fill: false
             }));
-
-            new Chart(ctx, {
-                type: "line",
+            lineChart = new Chart(document.getElementById("lineChart"), {
+                type: 'line',
                 data: { datasets },
-                options: {
-                    responsive: true,
-                    scales: {
-                        x: {
-                            type: "time",
-                            time: { unit: "minute" },
-                            title: { display: true, text: "Time" }
-                        },
-                        y: { title: { display: true, text: "Token Count" } }
-                    }
+                options: { scales: { x: { type: 'time' } } }
+            });
+        }
+
+        function drawPieChart(data) {
+            if (pieChart) pieChart.destroy();
+            pieChart = new Chart(document.getElementById("pieChart"), {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{ data: Object.values(data), backgroundColor: Object.keys(data).map(() => getRandomColor()) }]
                 }
             });
         }
 
-        function drawPieChart(modelCosts) {
-            const ctx = document.getElementById("pieChart").getContext("2d");
-            new Chart(ctx, {
-                type: "pie",
+        function drawBarChart(data) {
+            if (barChart) barChart.destroy();
+            barChart = new Chart(document.getElementById("barChart"), {
+                type: 'bar',
                 data: {
-                    labels: Object.keys(modelCosts),
-                    datasets: [{
-                        data: Object.values(modelCosts),
-                        backgroundColor: Object.keys(modelCosts).map(() => getRandomColor())
-                    }]
+                    labels: Object.keys(data),
+                    datasets: [{ label: "Cost ($)", data: Object.values(data), backgroundColor: getRandomColor() }]
                 }
             });
         }
+
+        function renderPriceConfig() {
+            let rows = "";
+            for (let model in priceConfig) {
+                rows += `<tr>
+                    <td>${model}</td>
+                    <td><input type="number" value="${priceConfig[model]["Input price$/million"]}" id="price-${model}-input"></td>
+                    <td><input type="number" value="${priceConfig[model]["Output price$/million"]}" id="price-${model}-output"></td>
+                </tr>`;
+            }
+            document.querySelector("#priceTable tbody").innerHTML = rows;
+        }
+
+        function updatePriceConfig() {
+            // Update the local priceConfig without sending a request to the backend
+            for (let model in priceConfig) {
+                let newInputPrice = parseFloat(document.getElementById(`price-${model}-input`).value);
+                let newOutputPrice = parseFloat(document.getElementById(`price-${model}-output`).value);
+
+                priceConfig[model] = {
+                    "Input price$/million": newInputPrice,
+                    "Output price$/million": newOutputPrice
+                };
+            }
+
+            // Refresh data with the updated price configuration
+            fetchDataInternal();
+        }
+
 
         function getRandomColor() {
-            return `hsl(${Math.random() * 360}, 70%, 50%)`;
+            return `hsl(${Math.random() * 360}, 100%, 75%)`;
         }
 
         fetchData();
     </script>
 
 </body>
+
 </html>

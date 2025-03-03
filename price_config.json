@@ -1,0 +1,10 @@
+{
+  "gpt-4": {
+    "Input price$/million": 0.10,
+    "Output price$/million": 0.40
+  },
+  "gpt-3.5": {
+    "Input price$/million": 0.05,
+    "Output price$/million": 0.20
+  }
+}

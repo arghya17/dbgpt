@@ -1,4 +1,35 @@
 ```
+locals {
+  month = "03"  # Define the target month (March)
+  year  = "2025" # Define the target year
+}
+
+module "gke_cluster" {
+  source = "company/proprietary-gke-module"
+
+  maintenance_start_time   = "${local.year}-${local.month}-01T00:00:00Z"
+  maintenance_end_time     = "${local.year}-${local.month}-31T23:59:59Z"
+  maintenance_recurrence   = "FREQ=DAILY"
+
+  maintenance_exclusion = [
+    {
+      exclusion_name = "first-week-${local.month}"
+      start_name     = "${local.year}-${local.month}-01T00:00:00Z"
+      end_name       = "${local.year}-${local.month}-07T23:59:59Z"
+      scope          = "NO_UPGRADES"
+    },
+    {
+      exclusion_name = "last-week-${local.month}"
+      start_name     = "${local.year}-${local.month}-25T00:00:00Z"
+      end_name       = "${local.year}-${local.month}-31T23:59:59Z"
+      scope          = "NO_UPGRADES"
+    }
+  ]
+}
+
+
+
+
 createTime,responseId,promptTokenCount,candidateTokenCount,totalToeknCount,model_ver
 
 

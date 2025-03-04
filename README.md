@@ -27,6 +27,31 @@ module "gke_cluster" {
   ]
 }
 
+locals {
+  year   = "2025"
+  month  = "02"  # Change dynamically as needed
+  days_in_month = {
+    "01" = 31, "02" = 28, "03" = 31, "04" = 30,
+    "05" = 31, "06" = 30, "07" = 31, "08" = 31,
+    "09" = 30, "10" = 31, "11" = 30, "12" = 31
+  }
+
+  last_day_of_month = lookup(local.days_in_month, local.month)           # Get last day
+  start_day = tostring(local.last_day_of_month - 6)  # Calculate start day (last day - 7)
+}
+
+module "gke_cluster" {
+  source = "company/proprietary-gke-module"
+
+  maintenance_exclusion = [
+    {
+      exclusion_name = "last-week-${local.month}"
+      start_name     = "${local.year}-${local.month}-${local.start_day}T00:00:00Z"
+      end_name       = "${local.year}-${local.month}-${local.last_day_of_month}T23:59:59Z"
+      scope          = "NO_UPGRADES"
+    }
+  ]
+}
 
 
 

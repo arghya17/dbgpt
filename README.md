@@ -1,4 +1,15 @@
 ```
+Allowed maintenance window:
+April 12, 00:00 UTC → April 14, 00:00 UTC
+Total: 48 hours ✅
+Exclusions:
+April 1 – April 7 ❌ (Blocks 7 days)
+April 24 – April 30 ❌ (Blocks 7 days)
+Total available upgrade time in April: Only 48 hours (April 12–14)
+❌ Why It Fails?
+GKE requires at least 48 hours of availability within ANY 32-day rolling window. Since you are blocking 14 out of 30 days, the system does not guarantee 48 hours in all cases.
+
+
 locals {
   month = "03"  # Define the target month (March)
   year  = "2025" # Define the target year

@@ -1,4 +1,7 @@
 ```
+
+a=$(grep "grape" sample.txt || echo 0)
+
 Allowed maintenance window:
 April 12, 00:00 UTC → April 14, 00:00 UTC
 Total: 48 hours ✅

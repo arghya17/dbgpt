@@ -1,4 +1,161 @@
 ```
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: measure-service-sa
+  namespace: {{ .Values.namespace }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: measure-service-role
+  namespace: {{ .Values.namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services"]
+    verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: measure-service-rolebinding
+  namespace: {{ .Values.namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: measure-service-sa
+    namespace: {{ .Values.namespace }}
+roleRef:
+  kind: Role
+  name: measure-service-role
+  apiGroup: rbac.authorization.k8s.io
+
+
+
+
+
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: measure-metric-cron
+  namespace: {{ .Values.namespace }}
+spec:
+  schedule: "{{ .Values.cronJob.schedule }}"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: measure-service-sa
+          containers:
+            - name: metric-collector
+              image: busybox
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  echo "Fetching metric {{ .Values.cronJob.metricName }} from {{ .Values.serviceName }}"
+                  curl -s "http://{{ .Values.serviceName }}:8080/metrics/{{ .Values.cronJob.metricName }}"
+          restartPolicy: OnFailure
+
+
+
+
+
+namespace: <namespace>
+cronJob:
+  schedule: "<schedule>"
+  metricName: "<metric_name>"
+
+serviceName: "measure-service"
+
+
+
+apiVersion: v2
+name: measure-service-chart
+description: A Helm chart for deploying measure-service cron job
+version: 1.0.0
+appVersion: 1.0.0
+
+
+
+
+
+
+name: Deploy Measure Service
+
+on:
+  workflow_dispatch:
+    inputs:
+      namespace:
+        description: 'Kubernetes Namespace'
+        required: true
+      schedule:
+        description: 'Cron Schedule'
+        required: true
+      metricName:
+        description: 'Metric Name'
+        required: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Replace placeholders in values.yaml
+        run: |
+          sed -i "s|<namespace>|${{ github.event.inputs.namespace }}|g" measure-service-chart/values.yaml
+          sed -i "s|<schedule>|${{ github.event.inputs.schedule }}|g" measure-service-chart/values.yaml
+          sed -i "s|<metric_name>|${{ github.event.inputs.metricName }}|g" measure-service-chart/values.yaml
+
+      - name: Uninstall previous deployment
+        run: |
+          helm uninstall measure-service -n ${{ github.event.inputs.namespace }} || true
+          sleep 20
+
+      - name: Deploy Helm Chart
+        run: |
+          helm upgrade --install measure-service measure-service-chart -n ${{ github.event.inputs.namespace }}
+
+
+
+name: Trigger Measure Service Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  trigger-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Deploy Workflow
+        uses: benc-uk/workflow-dispatch@v1
+        with:
+          workflow: "Deploy Measure Service"
+          token: ${{ secrets.GITHUB_TOKEN }}
+          inputs: |
+            namespace: "monitoring"
+            schedule: "*/5 * * * *"
+            metricName: "cpu_usage"
+
+
+```
+
+
+
+
+
+
+
+
+
+
+
+```
 
 a=$(grep "grape" sample.txt || echo 0)
 

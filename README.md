@@ -1,4 +1,16 @@
 ```
+git config --global --unset url.ssh://git@bitbucket.org.insteadOf
+git config --global --unset user.name
+git config --global --unset user.email
+
+git config --global user.name "YourGitHubUsername"
+git config --global user.email "your-email@example.com"
+
+
+
+
+
+
 COUNT=$(grep -o '"severity":"High"' "$JSON_FILE" | wc -l || echo 0)
 job4:
   needs: [job2, job3]

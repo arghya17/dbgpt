@@ -2,6 +2,7 @@
 COUNT=$(grep -o '"severity":"High"' "$JSON_FILE" | wc -l || echo 0)
 job4:
   needs: [job2, job3]
+  if: always()  # Ensure Job4 always runs, even if Job2 and Job3 fail
   runs-on: ubuntu-latest
   steps:
     - name: Check if Job2 and Job3 both failed
@@ -10,9 +11,10 @@ job4:
           echo "Both Job2 and Job3 failed. Failing Job4 to prevent merge."
           exit 1
         fi
-
+        
     - name: Run Job4
       run: echo "Running Job 4"
+
 
 
 apiVersion: v1

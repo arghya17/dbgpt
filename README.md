@@ -1,4 +1,8 @@
 ```
+COUNT=$(grep -o '"severity":"High"' "$JSON_FILE" | wc -l || echo 0)
+
+
+
 apiVersion: v1
 kind: ServiceAccount
 metadata:

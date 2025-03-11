@@ -1,4 +1,79 @@
 ```
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: metric-scaler-cron
+  namespace: {{ .Values.namespace }}
+spec:
+  schedule: "{{ .Values.cronJob.schedule }}"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: measure-service-sa
+          containers:
+            - name: metric-scaler
+              image: bitnami/kubectl:latest
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  # Fetch CPU and RAM usage
+                  CPU_USAGE=$(kubectl top pod -n {{ .Values.namespace }} | grep {{ .Values.serviceName }} | awk '{print $2}' | sed 's/m//g' | awk '{s+=$1} END {print s}')
+                  RAM_USAGE=$(kubectl top pod -n {{ .Values.namespace }} | grep {{ .Values.serviceName }} | awk '{print $3}' | sed 's/Mi//g' | awk '{s+=$1} END {print s}')
+                  CPU_THRESHOLD={{ .Values.cronJob.cpuThreshold }}
+                  RAM_THRESHOLD={{ .Values.cronJob.ramThreshold }}
+
+                  # Fetch metric_count from Prometheus
+                  PROMETHEUS_URL="http://prometheus:9090/api/v1/query?query={{ .Values.cronJob.metricName }}"
+                  METRIC_COUNT=$(curl -s "$PROMETHEUS_URL" | jq '.data.result | length')
+
+                  echo "Metric count: $METRIC_COUNT"
+                  echo "CPU Usage: $CPU_USAGE m, RAM Usage: $RAM_USAGE Mi"
+
+                  # Fetch current replicas
+                  CURRENT_REPLICAS=$(kubectl get deployment {{ .Values.serviceName }} -n {{ .Values.namespace }} -o jsonpath='{.spec.replicas}')
+
+                  # Scale Up Logic (CPU or RAM above threshold)
+                  if [ "$CPU_USAGE" -gt "$CPU_THRESHOLD" ] || [ "$RAM_USAGE" -gt "$RAM_THRESHOLD" ]; then
+                    NEW_REPLICAS=$((CURRENT_REPLICAS + 1))
+                    echo "Scaling up to $NEW_REPLICAS replicas due to high CPU/RAM usage."
+                    kubectl scale deployment {{ .Values.serviceName }} --replicas=$NEW_REPLICAS -n {{ .Values.namespace }}
+                    exit 0
+                  fi
+
+                  # Scale Down Logic (metric_count == 0)
+                  if [ "$METRIC_COUNT" -eq 0 ]; then
+                    if [ "$CURRENT_REPLICAS" -gt 1 ]; then
+                      NEW_REPLICAS=$((CURRENT_REPLICAS - 1))
+                      echo "Scaling down to $NEW_REPLICAS replicas due to metric_count = 0."
+                      kubectl scale deployment {{ .Values.serviceName }} --replicas=$NEW_REPLICAS -n {{ .Values.namespace }}
+                    else
+                      echo "Only 1 replica remaining, no further scaling down."
+                    fi
+                  else
+                    echo "Metric count > 0, keeping the current replica count."
+                  fi
+          restartPolicy: OnFailure
+
+
+
+
+
+namespace: monitoring
+
+cronJob:
+  schedule: "*/5 * * * *"  # Runs every 5 minutes
+  metricName: "service_metric"
+  cpuThreshold: 200  # CPU threshold in millicores (m)
+  ramThreshold: 500  # RAM threshold in MiB
+
+serviceName: "measure-service"
+
+
+
+
+
 git config --global --unset url.ssh://git@bitbucket.org.insteadOf
 git config --global --unset user.name
 git config --global --unset user.email

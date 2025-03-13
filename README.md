@@ -1,4 +1,76 @@
 ```
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.servicename }}-hpa
+  labels:
+    app: {{ .Values.servicename }}
+    release: {{ .Release.Name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.servicename }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+{{- range .Values.autoscaling.metrics }}
+    - type: {{ .type }}
+      {{- if eq .type "Resource" }}
+      resource:
+        name: {{ .resource.name }}
+        target:
+          type: {{ .target.type }}
+          {{- if .target.averageUtilization }}
+          averageUtilization: {{ .target.averageUtilization }}
+          {{- end }}
+          {{- if .target.averageValue }}
+          averageValue: {{ .target.averageValue }}
+          {{- end }}
+      {{- else if eq .type "Pods" }}
+      pods:
+        metric:
+          name: {{ .pods.metric.name }}
+        target:
+          type: {{ .pods.target.type }}
+          averageValue: {{ .pods.target.averageValue }}
+      {{- end }}
+{{- end }}
+{{- end }}
+
+
+
+
+
+
+
+
+
+servicename: my-app-service
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: AverageValue
+          averageValue: 500Mi
+
+
+
+
+
 apiVersion: batch/v1
 kind: CronJob
 metadata:

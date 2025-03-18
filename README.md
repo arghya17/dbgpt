@@ -1,4 +1,10 @@
+
 ```
+
+curl "https://monitoring.googleapis.com/v1/projects/db-dev-proj-1/location/global/prometheus/api/v1/query?query=avg_over_time(app_active_users[10m])" \
+  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
+
+
 {{- if .Values.autoscaling.enabled }}
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler

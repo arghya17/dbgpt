@@ -1,5 +1,20 @@
 
 ```
+curl "https://monitoring.googleapis.com/v1/projects/db-dev-proj-1/location/global/prometheus/api/v1/label/__name__/values" \
+  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
+
+curl "https://monitoring.googleapis.com/v1/projects/db-dev-proj-1/location/global/prometheus/api/v1/series?match[]={__name__!=\"\"}&start=2025-03-17T00:00:00Z&end=2025-03-18T00:00:00Z" \
+  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
+
+curl "https://monitoring.googleapis.com/v1/projects/db-dev-proj-1/location/global/prometheus/api/v1/targets/metadata" \
+  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
+
+curl "https://monitoring.googleapis.com/v1/projects/db-dev-proj-1/location/global/prometheus/api/v1/query?query=avg_over_time(app_active_users[10m])" \
+  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
+
+curl "https://monitoring.googleapis.com/v1/projects/db-dev-proj-1/location/global/prometheus/api/v1/query_range?query=avg(app_active_users)&start=2025-03-18T00:00:00Z&end=2025-03-18T00:10:00Z&step=60s" \
+  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
+
 
 curl "https://monitoring.googleapis.com/v1/projects/db-dev-proj-1/location/global/prometheus/api/v1/query?query=avg_over_time(app_active_users[10m])" \
   -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"

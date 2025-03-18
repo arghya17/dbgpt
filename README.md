@@ -1,5 +1,13 @@
 
 ```
+curl "https://monitoring.googleapis.com/v1/projects/db-dev-proj-1/location/global/prometheus/api/v1/query?query=avg_over_time(app_active_users%5B10m%5D)" \
+  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
+
+curl "https://monitoring.googleapis.com/v1/projects/db-dev-proj-1/location/global/prometheus/api/v1/query" \
+  -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>" \
+  --data-urlencode "query=avg_over_time(app_active_users[10m])"
+
+
 curl "https://monitoring.googleapis.com/v1/projects/db-dev-proj-1/location/global/prometheus/api/v1/label/__name__/values" \
   -H "Authorization: Bearer <YOUR_ACCESS_TOKEN>"
 
